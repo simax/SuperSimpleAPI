@@ -5,67 +5,45 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http;
+using Microsoft.AspNetCore.TestHost;
 
 namespace SuperSimpleAPI
 {
     public class Startup
     {
-
         public IConfiguration Configuration { get; }
-        public static HttpMessageHandler BackChannelHandler { get; set; }
+        private readonly HttpMessageHandler _identityServerMessageHandler;
 
-        public Startup(IConfiguration configuration)
+        public Startup(IConfiguration configuration, HttpMessageHandler identityServerMessageHandler)
         {
             Configuration = configuration;
+            _identityServerMessageHandler = identityServerMessageHandler;
         }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
+            services
+                .AddMvc()
+                .SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
             ConfigureAuth(services);
-            services.Configure<ApiBehaviorOptions>(options =>
-            {
-                options.SuppressModelStateInvalidFilter = true;
-            });
-
+            services.Configure<ApiBehaviorOptions>(options => { options.SuppressModelStateInvalidFilter = true; });
         }
 
         public virtual void ConfigureAuth(IServiceCollection services)
         {
-
-            //services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            //    .AddIdentityServerAuthentication(options =>
-            //    {
-            //        options.Authority = Configuration.GetValue<string>("IdentityServerAuthority");
-            //        options.Audience = Configuration.GetValue<string>("IdentityServerAudience");
-            //        options.BackchannelHttpHandler = BackChannelHandler;
-            //    });
-
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+                .AddIdentityServerAuthentication(options =>
                 {
                     options.Authority = Configuration.GetValue<string>("IdentityServerAuthority");
-                    options.Audience = Configuration.GetValue<string>("IdentityServerAudience");
-                    //options.BackchannelHttpHandler = BackChannelHandler;
+                    options.JwtBackChannelHandler = _identityServerMessageHandler;
+                    options.RequireHttpsMetadata = false;
                 });
         }
 
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
-            else
-            {
-                app.UseHsts();
-            }
-
             app.UseAuthentication();
-            app.UseHttpsRedirection();
             app.UseMvc();
         }
     }
