@@ -47,7 +47,7 @@ namespace SuperSimpleAPI
                 {
                     options.Authority = Configuration.GetValue<string>("IdentityServerAuthority");
                     options.Audience = Configuration.GetValue<string>("IdentityServerAudience");
-                    options.BackchannelHttpHandler = BackChannelHandler;
+                    //options.BackchannelHttpHandler = BackChannelHandler;
                 });
         }
 
