@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Mime;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,20 +38,18 @@ namespace SuperSimpleAPI.IntegrationTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
-        [Fact]
-        public async Task Test_Working_Correctly_With_Authorize_Attribute()
-        {
-            var clientConfiguration = new ClientConfiguration("MyClient", "MySecret");
+        private HttpClient _apiClient;
+        private IdentityServerProxy _identityServerProxy;
+        private ClientConfiguration _clientConfiguration = new ClientConfiguration("MyClient", "MySecret");
 
+        public UnitTest1()
+        {
             var client = new Client
             {
-                ClientId = clientConfiguration.Id,
-                ClientSecrets = new List<Secret>
-                {
-                    new Secret(clientConfiguration.Secret.Sha256())
-                },
-                AllowedScopes = new[] {"api1"},
-                AllowedGrantTypes = new[] {GrantType.ClientCredentials},
+                ClientId = _clientConfiguration.Id,
+                ClientSecrets = new List<Secret> { new Secret(_clientConfiguration.Secret.Sha256()) },
+                AllowedScopes = new[] { "api1" },
+                AllowedGrantTypes = new[] { GrantType.ClientCredentials },
                 AccessTokenType = AccessTokenType.Jwt,
                 AllowOfflineAccess = true
             };
@@ -59,26 +59,36 @@ namespace SuperSimpleAPI.IntegrationTests
                 .AddApiResources(new ApiResource("api1", "api1name"))
                 .CreateWebHostBuilder();
 
-            var identityServerProxy = new IdentityServerProxy(webHostBuilder);
-            var tokenResponse = await identityServerProxy.GetClientAccessTokenAsync(clientConfiguration, "api1");
+            _identityServerProxy = new IdentityServerProxy(webHostBuilder);
 
             var apiServer = new TestServer(new WebHostBuilder()
                 .ConfigureAppConfiguration(builder =>
                 {
                     var configuration = new ConfigurationBuilder()
-                        .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
+                        .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appSettings.json"))
                         .Build();
 
                     builder.AddConfiguration(configuration);
                 })
-                .ConfigureServices(
-                    services => services.AddSingleton(identityServerProxy.IdentityServer.CreateHandler()))
-                .UseStartup<TestStartup>());
-            var apiClient = apiServer.CreateClient();
+                .ConfigureServices(services =>
+                    services.AddSingleton(_identityServerProxy.IdentityServer.CreateHandler()))
+                .UseStartup<TestStartup>()
+                // So we can use the TestStartup class from the IntegrationTests assembly
+                .UseSetting(WebHostDefaults.ApplicationKey, typeof(Program).GetTypeInfo().Assembly.FullName));
 
-            apiClient.SetBearerToken(tokenResponse.AccessToken);
 
-            var response = await apiClient.GetAsync("/api/values");
+            _apiClient = apiServer.CreateClient();
+
+        }
+
+
+        [Fact]
+        public async Task Test_Working_Correctly_With_Authorize_Attribute()
+        {
+            var tokenResponse = await _identityServerProxy.GetClientAccessTokenAsync(_clientConfiguration, "api1");
+            _apiClient.SetBearerToken(tokenResponse.AccessToken);
+
+            var response = await _apiClient.GetAsync("/api/values");
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
