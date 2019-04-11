@@ -37,7 +37,7 @@ namespace SuperSimpleAPI.IntegrationTests
         }
 
         [Fact]
-        public async Task Test_Not_Working()
+        public async Task Test_Working_Correctly_With_Authorize_Attribute()
         {
             var clientConfiguration = new ClientConfiguration("MyClient", "MySecret");
 
@@ -73,12 +73,12 @@ namespace SuperSimpleAPI.IntegrationTests
                 })
                 .ConfigureServices(
                     services => services.AddSingleton(identityServerProxy.IdentityServer.CreateHandler()))
-                .UseStartup<Startup>());
+                .UseStartup<TestStartup>());
             var apiClient = apiServer.CreateClient();
 
             apiClient.SetBearerToken(tokenResponse.AccessToken);
 
-            var response = await apiClient.GetAsync("/api/values/");
+            var response = await apiClient.GetAsync("/api/values");
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
